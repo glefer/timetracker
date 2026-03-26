@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/glefer/timetracker/blob/main/README.md
+    about: Consulter la documentation du projet
+  - name: Questions & Discussions
+    url: https://github.com/glefer/timetracker/discussions
+    about: Poser une question ou participer aux discussions

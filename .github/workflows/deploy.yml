@@ -1,0 +1,30 @@
+name: Deploy to Bunny
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: 'Build and deploy to Bunny EdgeScript'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: 'Setup Javascript'
+        uses: ./.github/actions/setup-project
+
+      - name: Bundle the script into a single file
+        run: deno task build
+
+      - name: Publish the script to Bunny
+        uses: 'BunnyWay/actions/deploy-script@main'
+        with:
+          script_id: 69393
+          file: "dist/index.ts"

@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+# Lint du code
+echo "Running lint..."
+deno task lint
+
+# Type-checking
+echo "Running type-check..."
+deno task check
