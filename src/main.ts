@@ -1,17 +1,25 @@
-import * as BunnySDK from "https://esm.sh/@bunny.net/edgescript-sdk@0.12.0";
+import * as BunnySDK from "@bunny.net/edgescript-sdk";
+import { app } from "./infrastructure/mod.ts";
+import { addAddressRoutes } from "./routes/addresses.ts";
+import { addDistanceRoutes } from "./routes/distances.ts";
+import { addTimesheetRoutes } from "./routes/timesheets.ts";
+import { addPageRoutes } from "./routes/pages.ts";
+import { addPdfRoutes } from "./routes/pdf.ts";
+import { addAdminRoutes } from "./routes/admin.ts";
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+addAdminRoutes(app);
+addPageRoutes(app);
+addAddressRoutes(app);
+addDistanceRoutes(app);
+addTimesheetRoutes(app);
+addPdfRoutes(app);
 
-console.log("Starting server...");
 const listener = BunnySDK.net.tcp.unstable_new();
-
 console.log("Listening on: ", BunnySDK.net.tcp.toString(listener));
+
 BunnySDK.net.http.serve(
-  async (req) => {
+  (req: Request): Response | Promise<Response> => {
     console.log(`[INFO]: ${req.method} - ${req.url}`);
-    await sleep(1);
-    return new Response("Hello mom!");
+    return app.fetch(req);
   },
 );
