@@ -7,22 +7,24 @@ export function addTimesheetRoutes(app: App): void {
   // GET /api/timesheets
   app.get("/api/timesheets", async (c) => {
     const result = await db.execute(`
-      SELECT t.id, t.name, t.period_from, t.period_to, t.created_at,
+      SELECT t.id, t.name, t.created_at,
              COUNT(e.id) AS entry_count,
-             COALESCE(SUM(e.distance_km), 0) AS total_km
+             COALESCE(SUM(e.distance_km), 0) AS total_km,
+             MIN(e.date) AS period_from,
+             MAX(e.date) AS period_to
       FROM timesheets t
       LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
       GROUP BY t.id
-      ORDER BY t.period_from DESC, t.id DESC
+      ORDER BY MIN(e.date) DESC, t.id DESC
     `);
     const rows = result.rows.map((r) => ({
       id: r[0] as number,
       name: r[1] as string,
-      period_from: r[2] as string,
-      period_to: r[3] as string,
-      created_at: r[4] as string,
-      entry_count: r[5] as number,
-      total_km: r[6] as number,
+      created_at: r[2] as string,
+      entry_count: r[3] as number,
+      total_km: r[4] as number,
+      period_from: r[5] as string | null,
+      period_to: r[6] as string | null,
     }));
     return c.json(rows);
   });
@@ -31,7 +33,11 @@ export function addTimesheetRoutes(app: App): void {
   app.get("/api/timesheets/:id", async (c) => {
     const id = Number(c.req.param("id"));
     const result = await db.execute({
-      sql: "SELECT id, name, period_from, period_to, created_at FROM timesheets WHERE id = ?",
+      sql: `SELECT t.id, t.name, t.created_at, MIN(e.date) AS period_from, MAX(e.date) AS period_to
+            FROM timesheets t
+            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
+            WHERE t.id = ?
+            GROUP BY t.id`,
       args: [id],
     });
     if (result.rows.length === 0) return c.json({ error: "Not found" }, 404);
@@ -39,9 +45,9 @@ export function addTimesheetRoutes(app: App): void {
     const sheet: Timesheet = {
       id: r[0] as number,
       name: r[1] as string,
-      period_from: r[2] as string,
-      period_to: r[3] as string,
-      created_at: r[4] as string,
+      created_at: r[2] as string,
+      period_from: r[3] as string | null,
+      period_to: r[4] as string | null,
     };
     return c.json(sheet);
   });
@@ -49,15 +55,15 @@ export function addTimesheetRoutes(app: App): void {
   // POST /api/timesheets
   app.post("/api/timesheets", async (c) => {
     const body = await c.req.json<TimesheetInput>();
-    if (!body.name?.trim() || !body.period_from || !body.period_to) {
-      return c.json({ error: "name, period_from and period_to are required" }, 400);
+    if (!body.name?.trim()) {
+      return c.json({ error: "name is required" }, 400);
     }
     const result = await db.execute({
-      sql: "INSERT INTO timesheets (name, period_from, period_to) VALUES (?, ?, ?)",
-      args: [body.name.trim(), body.period_from, body.period_to],
+      sql: "INSERT INTO timesheets (name) VALUES (?)",
+      args: [body.name.trim()],
     });
     const id = Number(result.lastInsertRowid);
-    return c.json({ id, name: body.name.trim(), period_from: body.period_from, period_to: body.period_to }, 201);
+    return c.json({ id, name: body.name.trim() }, 201);
   });
 
   // PUT /api/timesheets/:id
@@ -67,16 +73,19 @@ export function addTimesheetRoutes(app: App): void {
     const existing = await db.execute({ sql: "SELECT id FROM timesheets WHERE id = ?", args: [id] });
     if (existing.rows.length === 0) return c.json({ error: "Not found" }, 404);
     await db.execute({
-      sql: `UPDATE timesheets SET
-              name        = COALESCE(?, name),
-              period_from = COALESCE(?, period_from),
-              period_to   = COALESCE(?, period_to)
-            WHERE id = ?`,
-      args: [body.name?.trim() ?? null, body.period_from ?? null, body.period_to ?? null, id],
+      sql: "UPDATE timesheets SET name = COALESCE(?, name) WHERE id = ?",
+      args: [body.name?.trim() ?? null, id],
     });
-    const updated = await db.execute({ sql: "SELECT id, name, period_from, period_to, created_at FROM timesheets WHERE id = ?", args: [id] });
+    const updated = await db.execute({
+      sql: `SELECT t.id, t.name, t.created_at, MIN(e.date) AS period_from, MAX(e.date) AS period_to
+            FROM timesheets t
+            LEFT JOIN timesheet_entries e ON e.timesheet_id = t.id
+            WHERE t.id = ?
+            GROUP BY t.id`,
+      args: [id],
+    });
     const r = updated.rows[0];
-    return c.json({ id: r[0], name: r[1], period_from: r[2], period_to: r[3], created_at: r[4] });
+    return c.json({ id: r[0], name: r[1], created_at: r[2], period_from: r[3], period_to: r[4] });
   });
 
   // DELETE /api/timesheets/:id

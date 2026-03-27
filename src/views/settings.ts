@@ -17,6 +17,18 @@ export function settingsPage(): string {
     </small>
   </div>
 
+  <!-- Taux de remboursement kilométrique -->
+  <div style="border-top:1px solid #eee;padding-top:1.25rem;margin-bottom:1.5rem">
+    <label style="display:block;margin-bottom:.5rem">Taux de remboursement kilométrique (€/km)</label>
+    <div style="display:flex;align-items:center;gap:.5rem;max-width:280px">
+      <input id="rate-input" type="number" min="0" step="0.001" placeholder="Ex : 0.325" style="flex:1" />
+      <button class="btn-primary" onclick="saveRate()">Enregistrer</button>
+    </div>
+    <small style="color:#888;font-size:.78rem;margin-top:.3rem;display:block">
+      Utilisé pour calculer le montant remboursé sur chaque fiche de pointage.
+    </small>
+  </div>
+
   <!-- Template PDF -->
   <div style="border-top:1px solid #eee;padding-top:1.25rem;margin-bottom:1.5rem">
     <label style="display:block;margin-bottom:.5rem">Template PDF</label>
@@ -47,11 +59,12 @@ export function settingsPage(): string {
 
 <script>
   async function init() {
-    // Charger le nom/prénom
+    // Charger le nom/prénom et le taux kilométrique
     try {
       const s = await api('GET', '/api/pdf-settings');
       document.getElementById('fullname-input').value = s.full_name || '';
       updatePreview(s.full_name || '');
+      if (s.rate_per_km) document.getElementById('rate-input').value = s.rate_per_km;
     } catch(_) {}
 
     // Vérifier si un template est chargé
@@ -88,6 +101,16 @@ export function settingsPage(): string {
       await api('POST', '/api/pdf-settings', { full_name });
       toast('Nom enregistré ✓');
       updatePreview(full_name);
+    } catch(err) { toast(err.message, true); }
+  }
+
+  async function saveRate() {
+    const raw = document.getElementById('rate-input').value;
+    const rate_per_km = parseFloat(raw);
+    if (isNaN(rate_per_km) || rate_per_km < 0) { toast('Taux invalide', true); return; }
+    try {
+      await api('POST', '/api/pdf-settings', { rate_per_km });
+      toast('Taux enregistré ✓');
     } catch(err) { toast(err.message, true); }
   }
 

@@ -11,14 +11,6 @@ export function timesheetPage(): string {
         <label>Nom de la fiche</label>
         <input id="sheet-name" type="text" placeholder="Ex : Mars 2026 — Véhicule perso" required />
       </div>
-      <div class="form-group" style="max-width:160px">
-        <label>Période du</label>
-        <input id="sheet-from" type="date" required />
-      </div>
-      <div class="form-group" style="max-width:160px">
-        <label>Au</label>
-        <input id="sheet-to" type="date" required />
-      </div>
       <button type="submit" class="btn-primary">Créer</button>
     </form>
   </section>
@@ -29,10 +21,10 @@ export function timesheetPage(): string {
     </div>
     <table id="sheets-table">
       <thead>
-        <tr><th>Nom</th><th>Période</th><th>Lignes</th><th>Total km</th><th style="width:160px"></th></tr>
+        <tr><th>Nom</th><th>Période</th><th>Lignes</th><th>Total km</th><th>Remboursement</th><th style="width:160px"></th></tr>
       </thead>
       <tbody id="sheets-body">
-        <tr><td colspan="5" class="empty">Chargement…</td></tr>
+        <tr><td colspan="6" class="empty">Chargement…</td></tr>
       </tbody>
     </table>
   </section>
@@ -118,16 +110,6 @@ export function timesheetPage(): string {
       <label>Nom</label>
       <input id="edit-sheet-name" type="text" />
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Du</label>
-        <input id="edit-sheet-from" type="date" />
-      </div>
-      <div class="form-group">
-        <label>Au</label>
-        <input id="edit-sheet-to" type="date" />
-      </div>
-    </div>
     <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
       <button onclick="closeEditSheet()" style="background:#eee;color:#333">Annuler</button>
       <button onclick="saveEditSheet()" class="btn-primary">Enregistrer</button>
@@ -191,16 +173,16 @@ export function timesheetPage(): string {
   let currentSheetId = null;
   let editSheetId    = null;
   let editEntryId    = null;
+  let ratePerKm      = 0;
 
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
-    // Défaut : période du mois en cours
-    const now = new Date();
-    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
-    const lastDay = new Date(y, now.getMonth()+1, 0).getDate();
-    document.getElementById('sheet-from').value = \`\${y}-\${m}-01\`;
-    document.getElementById('sheet-to').value   = \`\${y}-\${m}-\${String(lastDay).padStart(2,'0')}\`;
-    document.getElementById('entry-date').value = now.toISOString().slice(0,10);
+    document.getElementById('entry-date').value = new Date().toISOString().slice(0,10);
+
+    try {
+      const settings = await api('GET', '/api/pdf-settings');
+      ratePerKm = settings.rate_per_km || 0;
+    } catch(_) {}
 
     await loadAddresses();
     loadSheets();
@@ -220,18 +202,19 @@ export function timesheetPage(): string {
     const sheets = await api('GET', '/api/timesheets');
     const tbody = document.getElementById('sheets-body');
     if (!sheets.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">Aucune fiche. Créez-en une ci-dessus.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Aucune fiche. Créez-en une ci-dessus.</td></tr>';
       return;
     }
     tbody.innerHTML = sheets.map(s => \`
       <tr>
         <td><strong>\${esc(s.name)}</strong></td>
-        <td>\${fmtDate(s.period_from)} → \${fmtDate(s.period_to)}</td>
+        <td>\${s.period_from ? fmtDate(s.period_from) + ' → ' + fmtDate(s.period_to) : '—'}</td>
         <td>\${s.entry_count}</td>
         <td><span class="badge">\${(+s.total_km).toFixed(1)} km</span></td>
+        <td>\${ratePerKm > 0 ? '<span class="badge" style="background:#e6f4ea;color:#1e7e34">' + (s.total_km * ratePerKm).toFixed(2) + ' €</span>' : '—'}</td>
         <td style="display:flex;gap:.3rem;flex-wrap:wrap">
-          <button class="btn-primary" style="font-size:.78rem;padding:.3rem .6rem" onclick="openSheet(\${s.id},'\${esc(s.name)}','\${s.period_from}','\${s.period_to}')">Ouvrir</button>
-          <button class="btn-edit"    onclick="openEditSheet(\${s.id},'\${esc(s.name)}','\${s.period_from}','\${s.period_to}')">Modifier</button>
+          <button class="btn-primary" style="font-size:.78rem;padding:.3rem .6rem" onclick="openSheet(\${s.id},'\${esc(s.name)}','\${s.period_from||''}','\${s.period_to||''}')">Ouvrir</button>
+          <button class="btn-edit"    onclick="openEditSheet(\${s.id},'\${esc(s.name)}')">Modifier</button>
           <button class="btn-danger"  onclick="deleteSheet(\${s.id})">Supprimer</button>
         </td>
       </tr>\`).join('');
@@ -240,15 +223,11 @@ export function timesheetPage(): string {
   document.getElementById('sheet-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('sheet-name').value.trim();
-    const from = document.getElementById('sheet-from').value;
-    const to   = document.getElementById('sheet-to').value;
     try {
-      const sheet = await api('POST', '/api/timesheets', { name, period_from: from, period_to: to });
+      const sheet = await api('POST', '/api/timesheets', { name });
       toast('Fiche créée ✓');
       e.target.reset();
-      // Rouvrir les valeurs par défaut
-      init();
-      openSheet(sheet.id, sheet.name, sheet.period_from, sheet.period_to);
+      openSheet(sheet.id, sheet.name, null, null);
     } catch(err) { toast(err.message, true); }
   });
 
@@ -262,11 +241,9 @@ export function timesheetPage(): string {
   }
 
   // Edit fiche modal
-  function openEditSheet(id, name, from, to) {
+  function openEditSheet(id, name) {
     editSheetId = id;
     document.getElementById('edit-sheet-name').value = name;
-    document.getElementById('edit-sheet-from').value = from;
-    document.getElementById('edit-sheet-to').value   = to;
     document.getElementById('edit-sheet-modal').style.display = 'flex';
   }
   function closeEditSheet() {
@@ -274,10 +251,8 @@ export function timesheetPage(): string {
   }
   async function saveEditSheet() {
     const name = document.getElementById('edit-sheet-name').value.trim();
-    const from = document.getElementById('edit-sheet-from').value;
-    const to   = document.getElementById('edit-sheet-to').value;
     try {
-      await api('PUT', '/api/timesheets/' + editSheetId, { name, period_from: from, period_to: to });
+      await api('PUT', '/api/timesheets/' + editSheetId, { name });
       toast('Fiche mise à jour ✓');
       closeEditSheet();
       loadSheets();
@@ -287,7 +262,8 @@ export function timesheetPage(): string {
   // ── DÉTAIL D'UNE FICHE ────────────────────────────────────────────────────
   function openSheet(id, name, periodFrom, periodTo) {
     currentSheetId = id;
-    document.getElementById('detail-title').textContent = name + ' (' + fmtDate(periodFrom) + ' → ' + fmtDate(periodTo) + ')';
+    const period = periodFrom ? ' (' + fmtDate(periodFrom) + ' → ' + fmtDate(periodTo) + ')' : '';
+    document.getElementById('detail-title').textContent = name + period;
     document.getElementById('view-list').style.display   = 'none';
     document.getElementById('view-detail').style.display = 'block';
     loadEntries();
