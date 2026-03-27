@@ -20,12 +20,23 @@
     "check": "deno check src/main.ts",
     "build": "mkdir -p dist && deno run -A build.mjs",
     "dev": "deno run -A src/main.ts",
-    "release": "echo \"No release\"",
-    "ci:version": "pnpm changeset version",
-    "ci:publish": "./scripts/publish.sh"
+    "release": "semantic-release",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.26.2",
-    "esbuild": "^0.25.3"
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "conventional-changelog-conventionalcommits": "^9.3.0",
+    "esbuild": "^0.25.3",
+    "husky": "^9.1.7",
+    "semantic-release": "^25.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "handlebars": "^4.7.9"
+    }
   }
 }

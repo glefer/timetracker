@@ -1,4 +1,4 @@
-name: Release Changeset
+name: Semantic Release
 
 on:
   push:
@@ -7,30 +7,33 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   release:
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-
     name: Release
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Javascript
         uses: ./.github/actions/setup-project
 
-      - name: Create Release Pull Request
-        uses: changesets/action@v1
+      - name: Lint
+        run: deno task lint
+
+      - name: Test
+        run: deno task test
+
+      - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          publish: "pnpm run ci:publish"
-          version: "pnpm run ci:version"
-          title: "🎉 Release"
-          createGithubReleases: true
+        run: pnpm run release

@@ -1,3 +1,5 @@
+import { APP_VERSION } from "../version.ts";
+
 /** Shared HTML layout wrapper */
 export function layout(title: string, activeTab: "config" | "distances" | "timesheet" | "settings", body: string): string {
   return `<!DOCTYPE html>
@@ -5,12 +7,14 @@ export function layout(title: string, activeTab: "config" | "distances" | "times
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex">
   <title>${title} — TimeTracker</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
     header { background: #1a1a2e; color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
     header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: .05em; }
+    header .version { margin-left: auto; font-size: .75rem; color: #999; font-weight: 400; }
     nav { display: flex; gap: .25rem; }
     nav a { padding: .4rem .9rem; border-radius: 4px; color: #cdd; text-decoration: none; font-size: .9rem; transition: background .15s; }
     nav a:hover { background: rgba(255,255,255,.1); }
@@ -85,6 +89,7 @@ export function layout(title: string, activeTab: "config" | "distances" | "times
       <a href="/distances"   class="${activeTab === "distances"  ? "active" : ""}">📏 Distances</a>
       <a href="/settings"    class="${activeTab === "settings"   ? "active" : ""}">🖨 Configuration</a>
     </nav>
+    <span class="version">v${APP_VERSION}</span>
   </header>
   <main>${body}</main>
 </body>

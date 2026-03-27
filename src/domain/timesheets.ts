@@ -2,14 +2,14 @@
 export type Timesheet = {
   id: number;
   name: string;
-  /** ISO date "YYYY-MM-DD" */
-  period_from: string;
-  /** ISO date "YYYY-MM-DD" */
-  period_to: string;
+  /** ISO date "YYYY-MM-DD" — déduit du MIN des lignes de pointage */
+  period_from: string | null;
+  /** ISO date "YYYY-MM-DD" — déduit du MAX des lignes de pointage */
+  period_to: string | null;
   created_at: string;
 };
 
-export type TimesheetInput = Omit<Timesheet, "id" | "created_at">;
+export type TimesheetInput = Pick<Timesheet, "name">;
 
 /** Ligne de pointage rattachée à une fiche */
 export type TimesheetEntry = {

@@ -7,23 +7,34 @@ export function addPdfRoutes(app: App): void {
 
   // ── Paramètres PDF ────────────────────────────────────────────────────────
 
-  // GET /api/pdf-settings — lire le nom/prénom (sans la signature binaire)
+  // GET /api/pdf-settings — lire le nom/prénom et le taux kilométrique
   app.get("/api/pdf-settings", async (c) => {
-    const r = await db.execute("SELECT full_name FROM pdf_settings WHERE id = 1");
-    const full_name = r.rows.length ? (r.rows[0][0] as string) : "";
-    return c.json({ full_name });
+    const r = await db.execute("SELECT full_name, rate_per_km FROM pdf_settings WHERE id = 1");
+    const full_name   = r.rows.length ? (r.rows[0][0] as string) : "";
+    const rate_per_km = r.rows.length ? (r.rows[0][1] as number) : 0;
+    return c.json({ full_name, rate_per_km });
   });
 
-  // POST /api/pdf-settings — mettre à jour le nom/prénom
+  // POST /api/pdf-settings — mettre à jour le nom/prénom et/ou le taux kilométrique
   app.post("/api/pdf-settings", async (c) => {
-    const body = await c.req.json<{ full_name?: string }>();
-    const full_name = body.full_name?.trim();
-    if (!full_name) return c.json({ error: "full_name requis" }, 400);
+    const body = await c.req.json<{ full_name?: string; rate_per_km?: number }>();
+    const full_name   = body.full_name?.trim();
+    const rate_per_km = body.rate_per_km != null ? Number(body.rate_per_km) : null;
+    if (!full_name && rate_per_km === null) {
+      return c.json({ error: "full_name ou rate_per_km requis" }, 400);
+    }
     await db.execute({
-      sql: "UPDATE pdf_settings SET full_name = ? WHERE id = 1",
-      args: [full_name],
+      sql: `UPDATE pdf_settings SET
+              full_name   = COALESCE(?, full_name),
+              rate_per_km = COALESCE(?, rate_per_km)
+            WHERE id = 1`,
+      args: [full_name ?? null, rate_per_km],
     });
-    return c.json({ full_name });
+    const updated = await db.execute("SELECT full_name, rate_per_km FROM pdf_settings WHERE id = 1");
+    return c.json({
+      full_name:   updated.rows[0][0] as string,
+      rate_per_km: updated.rows[0][1] as number,
+    });
   });
 
   // POST /api/pdf-settings/signature — upload PNG de signature
@@ -103,15 +114,13 @@ export function addPdfRoutes(app: App): void {
 
     // 1. Récupérer la fiche
     const sheetResult = await db.execute({
-      sql: "SELECT id, name, period_from, period_to FROM timesheets WHERE id = ?",
+      sql: "SELECT id, name FROM timesheets WHERE id = ?",
       args: [tsId],
     });
     if (sheetResult.rows.length === 0) return c.json({ error: "Fiche introuvable" }, 404);
     const sheet = {
       id: sheetResult.rows[0][0] as number,
       name: sheetResult.rows[0][1] as string,
-      period_from: sheetResult.rows[0][2] as string,
-      period_to: sheetResult.rows[0][3] as string,
     };
 
     // 2. Récupérer les lignes triées par date
@@ -146,11 +155,18 @@ export function addPdfRoutes(app: App): void {
     const signatureRaw = settingsResult.rows.length ? settingsResult.rows[0][1] : null;
     const signatureBytes = signatureRaw ? signatureRaw as unknown as Uint8Array : null;
 
-    // 5. Générer le PDF
-    const pdfBytes = await buildPdf(templateBytes, entries, signatureBytes, fullName, sheet.period_from, sheet.period_to);
+    // 5. Calculer les dates min/max à partir des entrées réelles
+    const sortedDates = entries.map((e) => e.date).filter(Boolean).sort();
+    const periodFrom = sortedDates.length ? sortedDates[0] : null;
+    const periodTo   = sortedDates.length ? sortedDates[sortedDates.length - 1] : null;
+
+    // 6. Générer le PDF
+    const pdfBytes = await buildPdf(templateBytes, entries, signatureBytes, fullName, periodFrom, periodTo);
 
     const filenamePrefix = toFilePrefix(fullName) || "export";
-    const filename = `${filenamePrefix}_${sheet.period_from}_${sheet.period_to}.pdf`;
+    const filename = periodFrom && periodTo
+      ? `${filenamePrefix}_${periodFrom}_${periodTo}.pdf`
+      : `${filenamePrefix}_${sheet.name}.pdf`;
     return new Response(pdfBytes.buffer as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
@@ -178,8 +194,8 @@ async function buildPdf(
   entries: EntryRow[],
   signatureBytes: Uint8Array | null,
   fullName: string,
-  periodFrom: string,
-  periodTo: string,
+  periodFrom: string | null,
+  periodTo: string | null,
 ): Promise<Uint8Array> {
   const cfg = PDF_CONFIG;
 
@@ -219,12 +235,10 @@ async function buildPdf(
     if (fullName) {
       page.drawText(fullName, { x: cfg.HEADER_NAME_X, y: cfg.HEADER_NAME_Y, ...headerOpts });
     }
-    // Mois/Année : déduit des dates réelles des entrées (plus fiable que period_from/to)
-    const sortedDates = entries.map(e => e.date).filter(Boolean).sort();
-    const dateMin = sortedDates.length ? sortedDates[0] : periodFrom;
-    const dateMax = sortedDates.length ? sortedDates[sortedDates.length - 1] : periodTo;
-    const monthLabel = periodToMonthLabel(dateMin, dateMax);
-    page.drawText(monthLabel, { x: cfg.HEADER_MONTH_X, y: cfg.HEADER_MONTH_Y, ...headerOpts });
+    const monthLabel = periodToMonthLabel(periodFrom, periodTo);
+    if (monthLabel) {
+      page.drawText(monthLabel, { x: cfg.HEADER_MONTH_X, y: cfg.HEADER_MONTH_Y, ...headerOpts });
+    }
 
     // Écrire les lignes
     for (const entry of pageEntries) {
@@ -326,7 +340,7 @@ function toFilePrefix(fullName: string): string {
  * - Mois différents, même année : "Février-Mars 2026"
  * - Années différentes : "Décembre 2025-Janvier 2026"
  */
-function periodToMonthLabel(isoFrom: string, isoTo: string): string {
+function periodToMonthLabel(isoFrom: string | null, isoTo: string | null): string {
   const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
   if (!isoFrom) return "";
   const [yearFrom, monthFrom] = isoFrom.split("-");

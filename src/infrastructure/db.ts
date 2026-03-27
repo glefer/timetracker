@@ -92,6 +92,13 @@ export const MIGRATIONS: Migration[] = [
       "ALTER TABLE pdf_settings ADD COLUMN full_name TEXT NOT NULL DEFAULT ''",
     ],
   },
+
+  {
+    id: "006_pdf_settings_add_rate_per_km",
+    sql: [
+      "ALTER TABLE pdf_settings ADD COLUMN rate_per_km REAL NOT NULL DEFAULT 0",
+    ],
+  },
 ];
 
 // Applies all pending migrations and returns a report.

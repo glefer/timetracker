@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+# Exécuter les tests avant le push
+echo "Running tests before push..."
+deno task test
+
+# Build check
+echo "Checking build..."
+deno task build

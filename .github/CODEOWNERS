@@ -1,0 +1,33 @@
+# Code Owners - Auto-assignation des reviewers sur les PRs
+
+# Default owner pour tout le projet
+* @glefer
+
+# Configuration & Infrastructure
+*.json @glefer
+*.mjs @glefer
+.github/** @glefer
+deno.json @glefer
+
+# Documentation
+*.md @glefer
+/docs/** @glefer
+
+# Source code - Domain
+/src/domain/** @glefer
+
+# Source code - Infrastructure
+/src/infrastructure/** @glefer
+
+# Source code - Routes/API
+/src/routes/** @glefer
+
+# Source code - Views
+/src/views/** @glefer
+
+# Tests
+**/*.test.ts @glefer
+
+# Scripts de build et déploiement
+/build.mjs @glefer
+/.github/workflows/** @glefer
