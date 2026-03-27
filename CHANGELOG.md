@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/glefer/timetracker/compare/v1.0.0...v1.0.1) (2026-03-27)
+
+### Bug Fixes
+
+* ci token ([7808e99](https://github.com/glefer/timetracker/commit/7808e99649e8ce1835e9506a570069aa96aefca1))
+
 ## 1.0.0 (2026-03-27)
 
 ### Features

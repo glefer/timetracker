@@ -1,6 +1,6 @@
 {
   "name": "timepicker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "src/index.ts",
   "type": "module",
   "private": true,
